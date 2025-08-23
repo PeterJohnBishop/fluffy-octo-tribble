@@ -37,8 +37,8 @@ func GetDirections(client *maps.Client) gin.HandlerFunc {
 		}
 
 		// Get query params a and b
-		a := c.Query("a")
-		b := c.Query("b")
+		a := c.Query("origin")
+		b := c.Query("destination")
 		if a == "" || b == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing origin (a) or destination (b)"})
 			return
