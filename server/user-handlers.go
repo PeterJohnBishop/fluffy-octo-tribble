@@ -51,9 +51,40 @@ func CreateUser(client *dynamodb.Client) gin.HandlerFunc {
 			return
 		}
 
+		claims := authentication.UserClaims{
+			ID:        user.ID,
+			Name:      user.Name,
+			Email:     email,
+			TokenType: "access",
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: time.Now().Add(authentication.AccessTokenTTL).Unix(),
+				IssuedAt:  time.Now().Unix(),
+				Subject:   user.ID,
+			},
+		}
+
+		accessToken, err := authentication.NewAccessToken(claims)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create access token"})
+			return
+		}
+
+		refreshClaims := jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(authentication.RefreshTokenTTL).Unix(),
+			IssuedAt:  time.Now().Unix(),
+			Subject:   user.ID,
+		}
+		refreshToken, err := authentication.NewRefreshToken(refreshClaims)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create refresh token"})
+			return
+		}
+
 		c.JSON(http.StatusCreated, gin.H{
-			"message": "User created successfully",
-			"user.id": userId,
+			"message":      "User created successfully",
+			"user.id":      userId,
+			"accessToken":  accessToken,
+			"refreshToken": refreshToken,
 		})
 	}
 }
@@ -80,33 +111,40 @@ func AuthUser(client *dynamodb.Client) gin.HandlerFunc {
 			return
 		}
 
-		userClaims := authentication.UserClaims{
-			ID:    user.ID,
-			Name:  user.Name,
-			Email: user.Email,
+		claims := authentication.UserClaims{
+			ID:        user.ID,
+			Name:      user.Name,
+			Email:     user.Email,
+			TokenType: "access",
 			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: time.Now().Add(authentication.AccessTokenTTL).Unix(),
 				IssuedAt:  time.Now().Unix(),
-				ExpiresAt: time.Now().Add(time.Minute * 15).Unix(),
+				Subject:   user.ID,
 			},
 		}
 
-		token, err := authentication.NewAccessToken(userClaims)
+		accessToken, err := authentication.NewAccessToken(claims)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create access token"})
 			return
 		}
 
-		refreshToken, err := authentication.NewRefreshToken(userClaims.StandardClaims)
+		refreshClaims := jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(authentication.RefreshTokenTTL).Unix(),
+			IssuedAt:  time.Now().Unix(),
+			Subject:   user.ID,
+		}
+		refreshToken, err := authentication.NewRefreshToken(refreshClaims)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate refresh token"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create refresh token"})
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"message":       "Login Success",
-			"token":         token,
-			"refresh_token": refreshToken,
-			"user":          user,
+			"message":      "Login Success",
+			"accessToken":  accessToken,
+			"refreshToken": refreshToken,
+			"user":         user,
 		})
 	}
 }

@@ -1,6 +1,8 @@
 package authentication
 
 import (
+	"context"
+	"fluffy-coto-tribble/server/services"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,6 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	"github.com/joho/godotenv"
@@ -34,11 +40,6 @@ var (
 
 // Load .env once at startup
 func InitAuth() {
-	// err := godotenv.Load()
-	// if err != nil {
-	// 	log.Fatal("Error loading .env file")
-	// }
-
 	envPath := filepath.Join(".", ".env") // this points to fluffy-octo-tribble/.env
 
 	if err := godotenv.Load(envPath); err != nil {
@@ -54,13 +55,15 @@ func InitAuth() {
 }
 
 type UserClaims struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	TokenType string `json:"token_type"`
 	jwt.StandardClaims
 }
 
 func NewAccessToken(claims UserClaims) (string, error) {
+	claims.TokenType = "access"
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return accessToken.SignedString([]byte(AccessTokenSecret))
 }
@@ -114,58 +117,97 @@ func ParseRefreshToken(refreshToken string) *jwt.StandardClaims {
 	return claims
 }
 
-func VerifyJWT() gin.HandlerFunc {
+func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Allow /register and /login without auth
-		if strings.HasPrefix(c.Request.URL.Path, "/register") ||
-			strings.HasPrefix(c.Request.URL.Path, "/login") {
-			c.Next()
-			return
-		}
-
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authentication Header is missing!"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header missing"})
+			c.Abort()
 			return
 		}
 
 		token := strings.TrimPrefix(authHeader, "Bearer ")
-		userClaims := ParseAccessToken(token)
-		if userClaims == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Failed to verify token!"})
+		if token == authHeader {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
+			c.Abort()
 			return
 		}
 
-		// You can attach claims to context for use in handlers
-		c.Set("userClaims", userClaims)
+		claims := ParseAccessToken(token)
+		if claims == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Failed to verify token"})
+			c.Abort()
+			return
+		}
 
+		if claims.TokenType == "refresh" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh tokens cannot be used here"})
+			c.Abort()
+			return
+		}
+
+		c.Set("claims", claims)
 		c.Next()
 	}
 }
 
-type VerifyRefreshRequest struct {
-	ID    string `json:"id"`
-	Token string `json:"token"`
+type RefreshRequest struct {
+	RefreshToken string `json:"refreshToken" binding:"required"`
 }
 
-func VerifyRefreshToken() gin.HandlerFunc {
+func RefreshTokenHandler(client *dynamodb.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req VerifyRefreshRequest
-
+		var req RefreshRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 			return
 		}
 
-		claims := ParseRefreshToken(req.Token)
+		claims := ParseRefreshToken(req.RefreshToken)
 		if claims == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Failed to verify token!"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
 			return
 		}
 
-		// Save user ID in Gin context
-		c.Set("userID", req.ID)
+		userID := claims.Subject
 
-		c.Next()
+		out, err := client.GetItem(context.TODO(), &dynamodb.GetItemInput{
+			TableName: aws.String("users"), // adjust table name
+			Key: map[string]types.AttributeValue{
+				"id": &types.AttributeValueMemberS{Value: userID},
+			},
+		})
+		if err != nil || out.Item == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			return
+		}
+
+		var user services.User
+		if err := attributevalue.UnmarshalMap(out.Item, &user); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unmarshal user"})
+			return
+		}
+
+		newClaims := UserClaims{
+			ID:        user.ID,
+			Name:      user.Name,
+			Email:     user.Email,
+			TokenType: "access",
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: time.Now().Add(AccessTokenTTL).Unix(),
+				IssuedAt:  time.Now().Unix(),
+				Subject:   user.ID,
+			},
+		}
+
+		accessToken, err := NewAccessToken(newClaims)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"accessToken": accessToken,
+		})
 	}
 }

@@ -18,10 +18,12 @@ func InitServer() {
 	AddDynamoDBRoutes(dynamoClient, router)
 
 	// // connect with S3
-	// s3Client := services.ConnectS3(cfg)
+	s3Client := services.ConnectS3(cfg)
+	AddS3Routes(s3Client, router)
 
 	// // connect with Google Maps
-	// mapClient := services.FindMaps()
+	mapClient := services.FindMaps()
+	AddMapRoutes(mapClient, router)
 
 	log.Println("Starting listening on :8080")
 	router.Run(":8080")
