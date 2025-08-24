@@ -13,13 +13,10 @@ import (
 
 func GetDirections(client *maps.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Only allow GET
 		if c.Request.Method != http.MethodGet {
 			c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "Method not allowed"})
 			return
 		}
-
-		// Auth
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header missing"})
@@ -36,15 +33,13 @@ func GetDirections(client *maps.Client) gin.HandlerFunc {
 			return
 		}
 
-		// Get query params a and b
-		a := c.Query("a")
-		b := c.Query("b")
+		a := c.Query("origin")
+		b := c.Query("destination")
 		if a == "" || b == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing origin (a) or destination (b)"})
 			return
 		}
 
-		// Get route
 		route, err := services.GetRoute(client, a, b)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get route"})

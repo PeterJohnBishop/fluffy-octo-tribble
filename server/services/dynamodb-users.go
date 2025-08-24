@@ -13,11 +13,34 @@ import (
 )
 
 func CreateUser(client *dynamodb.Client, tableName string, item map[string]types.AttributeValue) error {
-	_, err := client.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	email := item["email"].(*types.AttributeValueMemberS).Value
+
+	queryOut, err := client.Query(context.TODO(), &dynamodb.QueryInput{
+		TableName:              aws.String(tableName),
+		IndexName:              aws.String("email-index"),
+		KeyConditionExpression: aws.String("email = :e"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":e": &types.AttributeValueMemberS{Value: email},
+		},
+		Limit: aws.Int32(1),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to query GSI: %w", err)
+	}
+
+	if len(queryOut.Items) > 0 {
+		return fmt.Errorf("user with email %s already exists", email)
+	}
+
+	_, err = client.PutItem(context.TODO(), &dynamodb.PutItemInput{
 		TableName: aws.String(tableName),
 		Item:      item,
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+
+	return nil
 }
 
 func GetUserById(client *dynamodb.Client, tableName, id string) (map[string]types.AttributeValue, error) {
@@ -62,7 +85,7 @@ func GetUserByEmail(client *dynamodb.Client, tableName, email string) (*User, er
 
 	result, err := client.Query(context.TODO(), &dynamodb.QueryInput{
 		TableName:              aws.String(tableName),
-		IndexName:              aws.String("email-index"), // Use the GSI
+		IndexName:              aws.String("email-index"),
 		KeyConditionExpression: aws.String("email = :email"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":email": &types.AttributeValueMemberS{Value: email},
@@ -89,27 +112,50 @@ func GetUserByEmail(client *dynamodb.Client, tableName, email string) (*User, er
 
 func UpdateUser(client *dynamodb.Client, tableName string, user User) error {
 	updateBuilder := expression.UpdateBuilder{}
-	updatedFields := 0 // Track the number of fields updated
+	updatedFields := 0
+
+	if user.Email != "" {
+		expr, err := expression.NewBuilder().
+			WithFilter(expression.Name("email").Equal(expression.Value(user.Email))).
+			Build()
+		if err != nil {
+			return fmt.Errorf("error building email check expression: %w", err)
+		}
+
+		scanOut, err := client.Scan(context.TODO(), &dynamodb.ScanInput{
+			TableName:                 aws.String(tableName),
+			FilterExpression:          expr.Filter(),
+			ExpressionAttributeNames:  expr.Names(),
+			ExpressionAttributeValues: expr.Values(),
+		})
+		if err != nil {
+			return fmt.Errorf("error checking for duplicate email: %w", err)
+		}
+
+		for _, item := range scanOut.Items {
+			if idAttr, ok := item["id"].(*types.AttributeValueMemberS); ok {
+				if idAttr.Value != user.ID {
+					return fmt.Errorf("email %s is already in use", user.Email)
+				}
+			}
+		}
+
+		updateBuilder = updateBuilder.Set(expression.Name("email"), expression.Value(user.Email))
+		updatedFields++
+	}
 
 	if user.Name != "" {
 		updateBuilder = updateBuilder.Set(expression.Name("name"), expression.Value(user.Name))
 		updatedFields++
 	}
-	if user.Email != "" {
-		updateBuilder = updateBuilder.Set(expression.Name("email"), expression.Value(user.Email))
-		updatedFields++
-	}
 
-	// Ensure at least one field is being updated
 	if updatedFields == 0 {
-		fmt.Println("No fields to update")
 		return fmt.Errorf("must update at least one field")
 	}
 
 	expr, err := expression.NewBuilder().WithUpdate(updateBuilder).Build()
 	if err != nil {
-		fmt.Println("Error in expression builder:", err)
-		return err
+		return fmt.Errorf("error in expression builder: %w", err)
 	}
 
 	_, err = client.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
@@ -122,23 +168,22 @@ func UpdateUser(client *dynamodb.Client, tableName string, user User) error {
 		UpdateExpression:          expr.Update(),
 		ReturnValues:              types.ReturnValueUpdatedNew,
 	})
-
 	if err != nil {
-		fmt.Println("Error in client updater:", err)
+		return fmt.Errorf("error in client updater: %w", err)
 	}
-	return err
+
+	return nil
 }
 
 func UpdatePassword(client *dynamodb.Client, tableName string, user User) error {
 	updateBuilder := expression.UpdateBuilder{}
-	updatedFields := 0 // Track the number of fields updated
+	updatedFields := 0
 
 	if user.Name != "" && user.Email != "" && user.Password != "" {
 		updateBuilder = updateBuilder.Set(expression.Name("password"), expression.Value(user.Password))
 		updatedFields++
 	}
 
-	// Ensure at least one field is being updated
 	if updatedFields == 0 {
 		fmt.Println("No fields to update")
 		return fmt.Errorf("must update at least one field")

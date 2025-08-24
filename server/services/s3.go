@@ -30,7 +30,7 @@ func ConnectS3() *s3.Client {
 		config.WithCredentialsProvider(
 			aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
 		),
-		config.WithClientLogMode(aws.LogRequestWithBody|aws.LogResponseWithBody),
+		//config.WithClientLogMode(aws.LogRequestWithBody|aws.LogResponseWithBody), <- for debugging
 	)
 	s3Client := s3.NewFromConfig(s3Cfg, func(o *s3.Options) {
 		o.UsePathStyle = true
@@ -56,7 +56,6 @@ func UploadFile(client *s3.Client, filename string, fileContent multipart.File) 
 		return "", fmt.Errorf("failed to upload file: %w", err)
 	}
 
-	// Use regional endpoint for correct URL
 	fileURL := fmt.Sprintf("https://%s.s3-%s.amazonaws.com/uploads/%s", bucketName, s3_region, filename)
 	return fileURL, nil
 }

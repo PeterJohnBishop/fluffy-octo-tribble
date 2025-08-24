@@ -27,6 +27,7 @@ func ConnectDB() *dynamodb.Client {
 		config.WithCredentialsProvider(
 			aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
 		),
+		//config.WithClientLogMode(aws.LogRequestWithBody|aws.LogResponseWithBody), <- for debugging
 	)
 	ddbClient := dynamodb.NewFromConfig(ddbCfg)
 	_, err = GetTables(ddbClient)
