@@ -26,6 +26,7 @@ func StartAws() aws.Config {
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(region),
 		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""))),
+		config.WithClientLogMode(aws.LogRequestWithBody|aws.LogResponseWithBody),
 	)
 	if err != nil {
 		log.Fatal("Error loading AWS Config.")

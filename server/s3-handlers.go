@@ -12,13 +12,11 @@ import (
 
 func Upload(client *s3.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Allow only POST
 		if c.Request.Method != http.MethodPost {
 			c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "Method not allowed"})
 			return
 		}
 
-		// Auth
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header missing"})
@@ -46,7 +44,7 @@ func Upload(client *s3.Client) gin.HandlerFunc {
 		// Upload file
 		fileURL, err := services.UploadFile(client, header.Filename, file)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload file"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
@@ -59,8 +57,8 @@ func Upload(client *s3.Client) gin.HandlerFunc {
 
 func Download(client *s3.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Allow only POST (though GET is more typical for downloads)
-		if c.Request.Method != http.MethodPost {
+
+		if c.Request.Method != http.MethodGet {
 			c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "Method not allowed"})
 			return
 		}
@@ -82,14 +80,12 @@ func Download(client *s3.Client) gin.HandlerFunc {
 			return
 		}
 
-		// Get filename from query param
 		filename := c.Query("filename")
 		if filename == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing filename parameter"})
 			return
 		}
 
-		// Generate presigned URL
 		url, err := services.DownloadFile(client, filename)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate download URL"})
