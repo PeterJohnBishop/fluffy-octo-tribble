@@ -21,6 +21,16 @@ func AddDynamoDBRoutes(client *dynamodb.Client, r *gin.Engine) {
 		auth.PUT("/users", UpdateUser(client))
 		auth.PUT("/users/password", UpdatePassword(client))
 		auth.DELETE("/users/:id", DeleteUser(client))
+		auth.POST("/chats", CreateChat(client))
+		auth.GET("/chats", GetAllChats(client))
+		auth.GET("/chats/:id", GetChatById(client))
+		auth.PUT("/chats/:id", UpdateChat(client))
+		auth.DELETE("/chats/:id", DeleteChat(client))
+		auth.POST("/messages", CreateMessage(client))
+		auth.GET("/messages/:chatId/:id", GetChatMessage(client))
+		auth.GET("/messages/:chatId", GetAllChatMessages(client))
+		auth.PUT("/messages/:chatId/:id", UpdateMessage(client))
+		auth.DELETE("/messages/:chatId/:id", DeleteMessage(client))
 	}
 }
 
