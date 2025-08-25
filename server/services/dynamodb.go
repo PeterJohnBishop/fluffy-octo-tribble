@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"os"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/joho/godotenv"
 )
 
@@ -30,12 +33,41 @@ func ConnectDB() *dynamodb.Client {
 		//config.WithClientLogMode(aws.LogRequestWithBody|aws.LogResponseWithBody), <- for debugging
 	)
 	ddbClient := dynamodb.NewFromConfig(ddbCfg)
-	_, err = GetTables(ddbClient)
-	if err != nil {
-		log.Fatalf("Error connecting to DynamoDB.")
+
+	tables := map[string]func(*dynamodb.Client, string) error{
+		"chats":    CreateChatsTable,
+		"messages": CreateMessagesTable,
+		"users":    CreateUsersTable,
 	}
+
+	// Loop through tables
+	for name, createFunc := range tables {
+		err := CreateTableIfNotExists(createFunc, ddbClient, name)
+		if err != nil {
+			log.Fatalf("failed to create/check table %s: %v", name, err)
+		}
+		log.Printf("%s table read for data\n", name)
+	}
+
 	log.Printf("Connected to DynamoDB\n")
 	return ddbClient
+}
+
+func CreateTableIfNotExists(createFunc func(*dynamodb.Client, string) error, client *dynamodb.Client, tableName string) error {
+	_, err := client.DescribeTable(context.TODO(), &dynamodb.DescribeTableInput{
+		TableName: aws.String(tableName),
+	})
+	if err == nil {
+		log.Printf("%s table already exists\n", tableName)
+		return nil
+	}
+
+	var notFoundErr *types.ResourceNotFoundException
+	if !errors.As(err, &notFoundErr) {
+		return fmt.Errorf("error checking %s table: %w", tableName, err)
+	}
+
+	return createFunc(client, tableName)
 }
 
 func GetTables(client *dynamodb.Client) ([]string, error) {

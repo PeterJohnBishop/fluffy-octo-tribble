@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"fluffy-coto-tribble/server/authentication"
 	"fluffy-coto-tribble/server/services"
 	"fmt"
@@ -12,9 +13,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 )
+
+func ShortUUID() string {
+	u := uuid.New()
+	return strings.TrimRight(
+		strings.NewReplacer("-", "", "_", "", "/", "").Replace(
+			base64.URLEncoding.EncodeToString(u[:])),
+		"=",
+	)
+}
 
 func CreateUser(client *dynamodb.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -24,11 +34,7 @@ func CreateUser(client *dynamodb.Client) gin.HandlerFunc {
 			return
 		}
 
-		id, err := uuid.NewV1()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error generating user id"})
-			return
-		}
+		id := ShortUUID()
 
 		email := strings.ToLower(user.Email)
 		userId := fmt.Sprintf("u_%s", id)

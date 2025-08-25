@@ -12,6 +12,44 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+func CreateUsersTable(client *dynamodb.Client, tableName string) error {
+	_, err := client.CreateTable(context.TODO(), &dynamodb.CreateTableInput{
+		TableName: aws.String(tableName),
+		AttributeDefinitions: []types.AttributeDefinition{
+			{
+				AttributeName: aws.String("id"),
+				AttributeType: types.ScalarAttributeTypeS,
+			},
+			{
+				AttributeName: aws.String("email"),
+				AttributeType: types.ScalarAttributeTypeS,
+			},
+		},
+		KeySchema: []types.KeySchemaElement{
+			{
+				AttributeName: aws.String("id"),
+				KeyType:       types.KeyTypeHash, // Primary Key
+			},
+		},
+		GlobalSecondaryIndexes: []types.GlobalSecondaryIndex{
+			{
+				IndexName: aws.String("email-index"), // Name of the GSI
+				KeySchema: []types.KeySchemaElement{
+					{
+						AttributeName: aws.String("email"),
+						KeyType:       types.KeyTypeHash, // Partition Key for GSI
+					},
+				},
+				Projection: &types.Projection{
+					ProjectionType: types.ProjectionTypeAll, // include all attributes
+				},
+			},
+		},
+		BillingMode: types.BillingModePayPerRequest,
+	})
+	return err
+}
+
 func CreateUser(client *dynamodb.Client, tableName string, item map[string]types.AttributeValue) error {
 	email := item["email"].(*types.AttributeValueMemberS).Value
 

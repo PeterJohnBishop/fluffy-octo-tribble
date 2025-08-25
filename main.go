@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	log.Println("Hello, Fluffy Octo Tribble!")
+	log.Println("Starting services...")
 	authentication.InitAuth()
 	server.InitServer()
 }

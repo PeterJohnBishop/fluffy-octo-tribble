@@ -33,7 +33,7 @@ func InitServer() {
 	mapClient := services.FindMaps()
 	AddMapRoutes(mapClient, router)
 
-	log.Println("Starting listening on :8080")
+	log.Println("Server listening on :8080")
 	router.Run(":8080")
 }
 

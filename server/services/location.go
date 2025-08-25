@@ -23,7 +23,7 @@ func FindMaps() *maps.Client {
 		log.Fatalf("fatal error: %s", err)
 	}
 
-	log.Println("Connecting to Google Maps")
+	log.Println("Connected to Google Maps")
 	return mapClient
 }
 
