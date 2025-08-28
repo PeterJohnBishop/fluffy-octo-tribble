@@ -27,7 +27,7 @@ func InitServer() {
 
 	// connect S3
 	s3Client := services.ConnectS3()
-	AddS3Routes(s3Client, router)
+	AddS3Routes(s3Client, dynamoClient, router)
 
 	// connect Google Maps
 	mapClient := services.FindMaps()

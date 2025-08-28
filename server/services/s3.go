@@ -11,6 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/joho/godotenv"
 )
@@ -43,21 +46,95 @@ func ConnectS3() *s3.Client {
 	return s3Client
 }
 
-func UploadFile(client *s3.Client, filename string, fileContent multipart.File) (string, error) {
+func CreateFilesTable(client *dynamodb.Client, tableName string) error {
+	_, err := client.CreateTable(context.TODO(), &dynamodb.CreateTableInput{
+		TableName: aws.String(tableName),
+		AttributeDefinitions: []types.AttributeDefinition{
+			{
+				AttributeName: aws.String("userId"),
+				AttributeType: types.ScalarAttributeTypeS,
+			},
+			{
+				AttributeName: aws.String("fileId"),
+				AttributeType: types.ScalarAttributeTypeS,
+			},
+		},
+		KeySchema: []types.KeySchemaElement{
+			{
+				AttributeName: aws.String("userId"),
+				KeyType:       types.KeyTypeHash, // Partition key
+			},
+			{
+				AttributeName: aws.String("fileId"),
+				KeyType:       types.KeyTypeRange, // Sort key
+			},
+		},
+		BillingMode: types.BillingModePayPerRequest, // On-demand billing
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create files table: %w", err)
+	}
+
+	fmt.Println("✅ Files table created:", tableName)
+	return nil
+}
+
+func UploadFile(client *s3.Client, presigner *s3.PresignClient, filename string, fileContent multipart.File) (string, string, error) {
 	bucketName := os.Getenv("AWS_BUCKET")
-	s3_region := os.Getenv("AWS_REGION_S3")
+
+	fileKey := "uploads/" + filename
 
 	_, err := client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(bucketName),
-		Key:    aws.String("uploads/" + filename),
+		Key:    aws.String(fileKey),
 		Body:   fileContent,
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to upload file: %w", err)
+		return "", "", fmt.Errorf("failed to upload file: %w", err)
 	}
 
-	fileURL := fmt.Sprintf("https://%s.s3-%s.amazonaws.com/uploads/%s", bucketName, s3_region, filename)
-	return fileURL, nil
+	presignedReq, err := presigner.PresignGetObject(context.TODO(), &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(fileKey),
+	}, s3.WithPresignExpires(15*time.Minute)) // presigned URL valid for 15 minutes
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate presigned url: %w", err)
+	}
+
+	return fileKey, presignedReq.URL, nil
+}
+
+func SaveUserFile(dynamo *dynamodb.Client, tableName string, userFile UserFile) error {
+	av, err := attributevalue.MarshalMap(userFile)
+	if err != nil {
+		return err
+	}
+
+	_, err = dynamo.PutItem(context.TODO(), &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
+		Item:      av,
+	})
+	return err
+}
+
+func GetUserFiles(dynamo *dynamodb.Client, userID string) ([]UserFile, error) {
+	out, err := dynamo.Query(context.TODO(), &dynamodb.QueryInput{
+		TableName:              aws.String("files"),
+		KeyConditionExpression: aws.String("userId = :uid"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":uid": &types.AttributeValueMemberS{Value: userID},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var files []UserFile
+	if err := attributevalue.UnmarshalListOfMaps(out.Items, &files); err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }
 
 func DownloadFile(client *s3.Client, filename string) (string, error) {

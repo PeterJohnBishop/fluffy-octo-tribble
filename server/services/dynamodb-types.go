@@ -23,3 +23,10 @@ type Message struct {
 	Media     []string `json:"media" dynamodbav:"media"`
 	Timestamp int64    `json:"timestamp" dynamodbav:"timestamp"`
 }
+
+type UserFile struct {
+	UserID   string `dynamodbav:"userId"` // partition key
+	FileID   string `dynamodbav:"fileId"` // sort key
+	FileKey  string `dynamodbav:"fileKey"`
+	Uploaded int64  `dynamodbav:"uploaded"`
+}

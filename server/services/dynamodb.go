@@ -38,6 +38,7 @@ func ConnectDB() *dynamodb.Client {
 		"chats":    CreateChatsTable,
 		"messages": CreateMessagesTable,
 		"users":    CreateUsersTable,
+		"files":    CreateFilesTable,
 	}
 
 	// Loop through tables
