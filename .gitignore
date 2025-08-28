@@ -1,6 +1,7 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
+# =========================
+# Go specific
+# =========================
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -24,9 +25,82 @@ profile.cov
 go.work
 go.work.sum
 
-# env file
+# Env file
 .env
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# =========================
+# Flutter / Dart specific
+# =========================
+
+# Flutter build outputs
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+.melos_tool/
+
+# Android
+**/android/**/gradle-wrapper.jar
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/key.properties
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+
+# iOS / macOS
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/.symlinks/
+**/ios/build/
+**/ios/Pods/
+**/ios/Podfile.lock
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Pods/
+**/macos/Podfile.lock
+
+# Web
+**/web/.dart_tool/
+**/web/.flutter-plugins
+
+# Windows
+**/windows/flutter/ephemeral/
+**/windows/GeneratedPluginRegistrant.*
+**/windows/build/
+
+# Linux
+**/linux/flutter/ephemeral/
+**/linux/GeneratedPluginRegistrant.*
+**/linux/build/
+
+# Dart tool
+.dart_tool/
+.packages
+pubspec.lock
+
+# VS Code & IntelliJ / Android Studio
+.idea/
+.vscode/
+*.iml
+
+# =========================
+# General OS/system
+# =========================
+
+# macOS
+.DS_Store
+*.xcuserstate
+
+# Windows
+Thumbs.db
