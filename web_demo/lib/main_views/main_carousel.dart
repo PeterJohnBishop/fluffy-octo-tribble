@@ -49,8 +49,7 @@ class MainCarouselView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: CarouselSlider(
+    return CarouselSlider(
         options: CarouselOptions(
           height: double.infinity,
           viewportFraction: 1.0,
@@ -66,16 +65,13 @@ class MainCarouselView extends StatelessWidget {
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Background image
                   Image.network(
                     item["imageUrl"]!,
                     fit: BoxFit.cover,
                   ),
-                  // Dark overlay for better text visibility
                   Container(
                     color: Colors.black.withOpacity(0.4),
                   ),
-                  // Overlay text & button
                   Positioned(
                     left: 20,
                     bottom: 40,
@@ -116,7 +112,6 @@ class MainCarouselView extends StatelessWidget {
             },
           );
         }).toList(),
-      ),
     );
   }
 }

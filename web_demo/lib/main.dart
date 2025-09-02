@@ -5,6 +5,7 @@ import 'main_views/main_carousel.dart';
 import 'main_views/main_eddie.dart';
 import 'main_views/main_nav.dart';
 import 'main_views/main_tyler.dart';
+import 'websocket_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,11 +38,20 @@ class MainView extends StatefulWidget {
 
 class _MainViewState extends State<MainView> {
   late int selectedIndex;
+  late final WebSocketService ws;
 
   @override
   void initState() {
-    selectedIndex = 0;
     super.initState();
+    selectedIndex = 0;
+    ws = WebSocketService();
+    ws.connect("ws://localhost:8080/ws");
+  }
+
+  @override
+  void dispose() {
+    ws.disconnect();
+    super.dispose();
   }
 
   @override
@@ -55,16 +65,16 @@ class _MainViewState extends State<MainView> {
           return MainCarouselView();
         case 1:
           return SingleChildScrollView(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: const [
-        EddieView(),           // sizes itself based on content
-        SizedBox(height: 50),  // spacing
-        TylerView(),           // sizes itself based on content
-        SizedBox(height: 50),
-      ],
-    ),
-  );
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: const [
+                EddieView(),          
+                SizedBox(height: 50),  
+                TylerView(),           
+                SizedBox(height: 50),
+              ],
+            ),
+          );
         case 2:
           return Center(child: Text('Listings View', style: TextStyle(fontSize: 30)));
         case 3:
@@ -95,18 +105,24 @@ class _MainViewState extends State<MainView> {
                     color: Colors.black,
                   ),
                 ),
+                Divider(
+                  color: Colors.grey,
+                  thickness: 1,
+                  indent: width * 0.3,
+                  endIndent: width * 0.3,
+                  height: 20,
+                ),
                 Text(
                   'Residential & Commercial Real Estate',
                   style: TextStyle(
                     fontSize: 24,
-                    fontWeight: FontWeight.w200,
+                    fontWeight: FontWeight.w300,
                     color: Colors.blueGrey,
                   ),
                 ),
               ],
             ),
           ),
-          // Navigation
           MainNavView(
             height: height,
             width: width,
@@ -116,8 +132,8 @@ class _MainViewState extends State<MainView> {
                 selectedIndex = index;
               });
             },
+            ws: ws,
           ),
-          // Main content fills remaining space
           Expanded(child: getContentView()),
         ],
       ),

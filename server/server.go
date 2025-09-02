@@ -1,9 +1,11 @@
 package server
 
 import (
+	"encoding/json"
 	"fluffy-coto-tribble/server/services"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -37,6 +39,12 @@ func InitServer() {
 	router.Run(":8080")
 }
 
+type WSMessage struct {
+	Event     string `json:"event"`
+	Message   string `json:"message"`
+	Timestamp int64  `json:"timestamp"`
+}
+
 type Client struct {
 	conn *websocket.Conn
 	send chan []byte
@@ -59,7 +67,6 @@ func newHub() *Hub {
 }
 
 func (h *Hub) run() {
-
 	log.Println("WebSocket server listening on /ws")
 
 	for {
@@ -115,9 +122,27 @@ func (c *Client) read(hub *Hub) {
 	for {
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {
+			log.Println("Read error:", err)
 			break
 		}
-		hub.broadcast <- msg
+
+		var incoming WSMessage
+		if err := json.Unmarshal(msg, &incoming); err != nil {
+			log.Println("Invalid JSON message:", err)
+			continue
+		}
+
+		log.Printf("{ Event: %s, Message: %s, Timestamp: %d }\n",
+			incoming.Event, incoming.Message, incoming.Timestamp)
+
+		outgoing := WSMessage{
+			Event:     incoming.Event + "_ack",
+			Message:   incoming.Message,
+			Timestamp: time.Now().UnixMilli(),
+		}
+		outBytes, _ := json.Marshal(outgoing)
+
+		hub.broadcast <- outBytes
 	}
 }
 
@@ -126,6 +151,7 @@ func (c *Client) write() {
 	for msg := range c.send {
 		err := c.conn.WriteMessage(websocket.TextMessage, msg)
 		if err != nil {
+			log.Println("Write error:", err)
 			break
 		}
 	}
